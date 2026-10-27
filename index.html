@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rara AI - Private</title>
+<style>
+  :root {
+    --bg-body: #0f172a; --bg-topbar: #020617; --bg-sidebar: #020617;
+    --bg-msg-bot: #1e293b; --bg-input: #1e293b; --bg-menu: #1e293b;
+    --bg-menu-hover: #334155; --text-main: #e2e8f0; --text-muted: #94a3b8;
+    --border-color: #1e293b; --border-input: #334155; --accent: #3b82f6; --accent-hover: #2563eb;
+  }
+  body.light-mode {
+    --bg-body: #f1f5f9; --bg-topbar: #ffffff; --bg-sidebar: #ffffff;
+    --bg-msg-bot: #e2e8f0; --bg-input: #ffffff; --bg-menu: #f8fafc;
+    --bg-menu-hover: #e2e8f0; --text-main: #0f172a; --text-muted: #64748b;
+    --border-color: #cbd5e1; --border-input: #cbd5e1;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg-body); color:var(--text-main); height:100vh; display:flex; flex-direction:column; overflow:hidden; transition: 0.3s; }
+  
+  .topbar { padding:12px 16px; background:var(--bg-topbar); border-bottom:1px solid var(--border-color); font-size:14px; font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:12px; z-index: 10; }
+  .topbar .menu-btn { background:none; border:none; color:var(--text-main); font-size:24px; cursor:pointer; padding: 0 4px; }
+  .topbar .dot { width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow: 0 0 8px #22c55e; }
+  
+  .sidebar-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 100; display: none; opacity: 0; transition: opacity 0.3s; }
+  .sidebar-overlay.active { display: block; opacity: 1; }
+  .sidebar { position: fixed; top:0; left:-300px; width:300px; height:100%; background:var(--bg-sidebar); z-index: 101; transition: left 0.3s ease; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); }
+  .sidebar.active { left: 0; }
+  .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+  .sidebar-content { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .menu-item { padding: 14px 16px; background: var(--bg-menu); border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-main); border: 1px solid transparent; }
+  .menu-item:hover { background: var(--bg-menu-hover); border-color: var(--border-input); }
+  .switch { margin-left: auto; width: 40px; height: 22px; background: #475569; border-radius: 20px; position: relative; transition: 0.3s; }
+  .switch::after { content:''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: 0.3s; }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { transform: translateX(18px); }
+
+  .messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; scroll-behavior: smooth; }
+  .msg-container { display: flex; flex-direction: column; max-width: 85%; position: relative; }
+  .msg-container.user { align-self: flex-end; align-items: flex-end; }
+  .msg-container.bot { align-self: flex-start; align-items: flex-start; }
+  .msg { padding:12px 16px; border-radius:12px; line-height:1.6; font-size:14px; white-space:pre-wrap; word-wrap:break-word; cursor: pointer; }
+  .msg.user { background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .msg.bot { background:var(--bg-msg-bot); border-bottom-left-radius:4px; border: 1px solid var(--border-color); }
+  .msg.bot.streaming::after { content:'▊'; color:var(--accent); animation:blink 1s infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+  .msg img { max-width: 100%; border-radius: 8px; margin-top: 8px; display: block; border: 1px solid var(--border-input); }
+  
+  .action-btns { display: flex; gap: 6px; margin-top: 6px; opacity: 0; transition: 0.2s; }
+  .msg-container:hover .action-btns { opacity: 1; }
+  .btn-small { background: var(--bg-menu); border: 1px solid var(--border-input); color: var(--text-main); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .btn-small:hover { background: var(--bg-menu-hover); }
+  .btn-small.copied { background: #22c55e; color: white; border-color: #22c55e; }
+  
+  .empty { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--text-muted); text-align:center; gap:8px; }
+  .empty h1 { font-size:24px; color:var(--text-main); }
+  
+  .composer { padding:12px 16px; background:var(--bg-topbar); border-top:1px solid var(--border-color); display:flex; gap:10px; padding-bottom: env(safe-area-inset-bottom, 12px); align-items: center; }
+  .composer textarea { flex:1; padding:12px 14px; border-radius:10px; border:1px solid var(--border-input); background:var(--bg-input); color:var(--text-main); font-family:inherit; font-size:14px; resize:none; outline:none; max-height:120px; }
+  .composer textarea:focus { border-color:var(--accent); }
+  .btn-icon { background:var(--bg-menu); color:var(--text-main); border:1px solid var(--border-input); border-radius:10px; width: 44px; height: 44px; font-size: 20px; cursor:pointer; display: flex; justify-content: center; align-items: center; }
+  .btn-icon.recording { background: #ef4444; color: white; border-color: #ef4444; animation: pulse 1s infinite; }
+  @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  .btn-send { padding:0 20px; height: 44px; border:none; border-radius:10px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  .btn-send:hover { background: var(--accent-hover); }
+  .btn-send:disabled { opacity:.5; cursor:not-allowed; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; justify-content: center; align-items: center; padding: 20px; }
+  .modal-overlay.active { display: flex; }
+  .modal-box { background: var(--bg-sidebar); width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; border: 1px solid var(--border-color); max-height: 80vh; display: flex; flex-direction: column; }
+  .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 16px; display: flex; justify-content: space-between; }
+  .modal-close { cursor: pointer; color: #ef4444; }
+  .history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .history-item { padding: 12px; background: var(--bg-menu); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 14px; border: 1px solid transparent; }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item.active { border-color: var(--accent); background: var(--bg-menu-hover); }
+  .history-delete { color: #ef4444; padding: 4px 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>🤖 Rara AI</h2>
+      <span onclick="toggleSidebar()" style="cursor:pointer; font-size:20px;">✕</span>
+    </div>
+    <div class="sidebar-content">
+      <div class="menu-item" onclick="openHistoryModal()"><span>🗂️</span> Riwayat Chat</div>
+      <div class="menu-item" onclick="resetChat()"><span>💬</span> Chat Baru</div>
+      <div class="menu-item" onclick="toggleSuara()"><span>🔊</span> Suara Rara<div class="switch on" id="switchSuara"></div></div>
+      <div class="menu-item" onclick="toggleTema()"><span>🌗</span> Tema Terang<div class="switch" id="switchTema"></div></div>
+      <div class="menu-item" onclick="exportChat()"><span>📤</span> Ekspor Chat (.txt)</div>
+      <div class="menu-item" onclick="gantiMode()"><span>🎭</span> Mode: <span id="labelMode" style="font-weight:bold; color:var(--accent);">Santai</span></div>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    <span class="dot"></span>
+    <span class="title">Rara AI (Private)</span>
+  </div>
+  
+  <div class="messages" id="messages"></div>
+  
+  <div class="composer">
+    <button class="btn-icon" id="btnVoice" onclick="toggleVoice()" title="Bicara">🎤</button>
+    <textarea id="input" rows="1" placeholder="Ketik pesan atau minta gambar..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendMessage();}"></textarea>
+    <button class="btn-send" id="sendBtn" onclick="sendMessage()">Kirim</button>
+  </div>
+
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal-box">
+      <div class="modal-title"><span>🗂️ Riwayat Chat</span><span class="modal-close" onclick="closeHistoryModal()">✕</span></div>
+      <div class="history-list" id="historyList"></div>
+      <button class="btn-send" style="margin-top:16px; width:100%;" onclick="buatChatBaru()">+ Buat Chat Baru</button>
+    </div>
+  </div>
+
+<script>
+  // =========================================================
+  // ⚠️ MASUKKAN API KEY GROQ KAMU DI BAWAH INI (PASTE SAJA)
+  const API_KEY_GROQ = "";
+  // =========================================================
+
+  let chats = JSON.parse(localStorage.getItem('rara_chats_v6')) || [];
+  let activeChatId = localStorage.getItem('rara_active_v6') || null;
+  let streaming = false;
+  let recognition = null;
+  let isRecording = false;
+  let suaraAktif = localStorage.getItem('rara_suara') !== 'false';
+  let modeAI = localStorage.getItem('rara_mode') || 'Santai';
+
+  const MODES = {
+    'Santai': 'Namamu Rara. Asisten AI ramah, santai, gaul. Panggil user "Bos". Jawab bahasa Indonesia sehari-hari. Jangan pakai bintang (*). Jawab dengan SINGKAT dan PADAT.',
+    'Guru': 'Namamu Rara. Asisten AI pintar dan sabar. Panggil user "Bos". Jelaskan detail, terstruktur, mudah dipahami. Jangan pakai bintang (*).',
+    'Koding': 'Namamu Rara. Programmer ahli. Panggil user "Bos". Bantu selesaikan koding dengan rapi. Jangan pakai bintang (*).'
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    if(localStorage.getItem('rara_tema') === 'light') { document.body.classList.add('light-mode'); document.getElementById('switchTema').classList.add('on'); }
+    if(!suaraAktif) document.getElementById('switchSuara').classList.remove('on');
+    document.getElementById('labelMode').innerText = modeAI;
+    if (chats.length === 0) buatChatBaru();
+    else { if(!activeChatId || !chats.find(c => c.id === activeChatId)) activeChatId = chats[0].id; muatChat(); }
+  });
+
+  function simpanSemua() { localStorage.setItem('rara_chats_v6', JSON.stringify(chats)); localStorage.setItem('rara_active_v6', activeChatId); }
+  function buatChatBaru() { const id = 'chat_' + Date.now(); chats.unshift({ id: id, title: 'Percakapan Baru', history: [], html: '' }); activeChatId = id; simpanSemua(); muatChat(); closeHistoryModal(); }
+  function muatChat() { const chat = chats.find(c => c.id === activeChatId); const box = document.getElementById('messages'); if (chat && chat.html) { box.innerHTML = chat.html; pasangAksiPesan(); } else { box.innerHTML = `<div class="empty"><h1>Hai Bos! 👋</h1><p>Aku Rara. Ketik pesan atau minta gambar ya!</p></div>`; } box.scrollTop = box.scrollHeight; }
+  function simpanChatAktif() { const chat = chats.find(c => c.id === activeChatId); if (chat) { chat.html = document.getElementById('messages').innerHTML; simpanSemua(); } }
+  function resetChat() { if (!confirm('Hapus riwayat chat ini?')) return; const chat = chats.find(c => c.id === activeChatId); if (chat) { chat.history = []; chat.html = ''; chat.title = 'Percakapan Baru'; simpanSemua(); muatChat(); } toggleSidebar(); }
+  
+  function openHistoryModal() { document.getElementById('historyModal').classList.add('active'); renderHistoryList(); toggleSidebar(); }
+  function closeHistoryModal() { document.getElementById('historyModal').classList.remove('active'); }
+  function renderHistoryList() { const list = document.getElementById('historyList'); list.innerHTML = ''; chats.forEach(c => { const div = document.createElement('div'); div.className = 'history-item ' + (c.id === activeChatId ? 'active' : ''); div.innerHTML = `<span>${c.title}</span><span class="history-delete" onclick="hapusRiwayat(event, '${c.id}')">🗑️</span>`; div.onclick = (e) => { if(e.target.classList.contains('history-delete')) return; activeChatId = c.id; simpanSemua(); muatChat(); closeHistoryModal(); }; list.appendChild(div); }); }
+  function hapusRiwayat(e, id) { e.stopPropagation(); if(!confirm('Hapus percakapan ini?')) return; chats = chats.filter(c => c.id !== id); if (chats.length === 0) { buatChatBaru(); } else if (activeChatId === id) { activeChatId = chats[0].id; muatChat(); } simpanSemua(); renderHistoryList(); }
+
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('sidebarOverlay').classList.toggle('active'); }
+  function toggleSuara() { suaraAktif = !suaraAktif; localStorage.setItem('rara_suara', suaraAktif); const sw = document.getElementById('switchSuara'); if (suaraAktif) sw.classList.add('on'); else sw.classList.remove('on'); }
+  function toggleTema() { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('rara_tema', isLight ? 'light' : 'dark'); const sw = document.getElementById('switchTema'); if (isLight) sw.classList.add('on'); else sw.classList.remove('on'); }
+  function gantiMode() { const keys = Object.keys(MODES); let idx = keys.indexOf(modeAI); modeAI = keys[(idx + 1) % keys.length]; localStorage.setItem('rara_mode', modeAI); document.getElementById('labelMode').innerText = modeAI; }
+  function exportChat() { const chat = chats.find(c => c.id === activeChatId); if (!chat || !chat.history.length) return alert("Belum ada chat untuk diekspor, Bos."); let text = `--- EKSPOR CHAT RARA AI ---\nTanggal: ${new Date().toLocaleString()}\n\n`; chat.history.forEach(m => { text += `[${m.role === 'user' ? 'BOS' : 'RARA'}]: ${m.content}\n\n`; }); const blob = new Blob([text], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Chat_Rara_${Date.now()}.txt`; a.click(); toggleSidebar(); }
+
+  function pasangAksiPesan() {
+    document.querySelectorAll('.msg-container').forEach(container => {
+      if (container.querySelector('.action-btns')) return;
+      const msgDiv = container.querySelector('.msg'); if (!msgDiv) return;
+      const role = container.classList.contains('user') ? 'user' : 'bot';
+      const actionDiv = document.createElement('div'); actionDiv.className = 'action-btns';
+      
+      if (role === 'bot' && !msgDiv.querySelector('img')) {
+        const btnCopy = document.createElement('button'); btnCopy.className = 'btn-small'; btnCopy.innerHTML = '📋 Salin';
+        btnCopy.onclick = () => { const textToCopy = msgDiv.innerText.replace('▊', '').trim(); navigator.clipboard.writeText(textToCopy).then(() => { btnCopy.innerHTML = '✅ Tersalin!'; btnCopy.classList.add('copied'); setTimeout(() => { btnCopy.innerHTML = '📋 Salin'; btnCopy.classList.remove('copied'); }, 2000); }); };
+        actionDiv.appendChild(btnCopy);
+      }
+      const img = msgDiv.querySelector('img');
+      if (img) {
+        const btnSave = document.createElement('button'); btnSave.className = 'btn-small'; btnSave.innerHTML = '📥 Simpan Gambar';
+        btnSave.onclick = async () => { try { btnSave.innerHTML = '⏳ Mengunduh...'; const response = await fetch(img.src); const blob = await response.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Gambar_Rara_${Date.now()}.jpg`; a.click(); btnSave.innerHTML = '✅ Tersimpan!'; setTimeout(() => btnSave.innerHTML = '📥 Simpan Gambar', 2000); } catch (e) { alert('Gagal menyimpan gambar.'); btnSave.innerHTML = '📥 Simpan Gambar'; } };
+        actionDiv.appendChild(btnSave);
+      }
+      
+      const btnDel = document.createElement('button'); btnDel.className = 'btn-small'; btnDel.innerHTML = '🗑️ Hapus';
+      btnDel.onclick = () => { 
+        if(!confirm('Hapus pesan ini?')) return; 
+        const chat = chats.find(c => c.id === activeChatId); 
+        if(chat) {
+          const pesanTeks = msgDiv.innerText.replace('▊', '').trim();
+          const indexPesan = chat.history.findIndex(m => m.content === pesanTeks);
+          if(indexPesan !== -1) chat.history.splice(indexPesan, 1); 
+          container.remove(); 
+          simpanChatAktif(); 
+        }
+      };
+      actionDiv.appendChild(btnDel);
+      container.appendChild(actionDiv);
+    });
+  }
+
+  function toggleVoice() {
+    const btn = document.getElementById('btnVoice');
+    if (isRecording) { recognition.stop(); return; }
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { alert("Browser HP kamu belum mendukung fitur suara."); return; }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition(); recognition.lang = 'id-ID';
+    recognition.onstart = () => { isRecording = true; btn.classList.add('recording'); btn.innerText = '⏹️'; };
+    recognition.onresult = (event) => { document.getElementById('input').value = event.results[0][0].transcript; sendMessage(); };
+    recognition.onend = () => { isRecording = false; btn.classList.remove('recording'); btn.innerText = '🎤'; };
+    recognition.start();
+  }
+
+  async function generateImage(promptText) {
+    const botBubble = appendBubble('bot', 'Siap Bos! Rara sedang melukis...'); botBubble.classList.add('streaming');
+    try {
+      const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=1024&height=1024&nologo=true`;
+      const img = document.createElement('img'); img.src = imgUrl;
+      img.onload = () => { botBubble.innerText = "Ini gambar untuk Bos:"; botBubble.classList.remove('streaming'); botBubble.appendChild(img); pasangAksiPesan(); simpanChatAktif(); const chat = chats.find(c => c.id === activeChatId); if(chat) chat.history.push({ role: 'assistant', content: '[Gambar: ' + promptText + ']' }); simpanSemua(); };
+      img.onerror = () => { botBubble.innerText = "⚠️ Maaf Bos, gagal bikin gambar. Coba lagi ya."; botBubble.classList.remove('streaming'); };
+    } catch (e) { botBubble.innerText = '⚠️ Error sistem.'; botBubble.classList.remove('streaming'); }
+  }
+
+  function appendBubble(role, text) {
+    const box = document.getElementById('messages'); const empty = box.querySelector('.empty'); if (empty) empty.remove();
+    const container = document.createElement('div'); container.className = 'msg-container ' + role;
+    const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
+    container.appendChild(div); box.appendChild(container); box.scrollTop = box.scrollHeight; return div;
+  }
+
+  async function sendMessage() {
+    if (streaming) return;
+    
+    const input = document.getElementById('input'); 
+    const sendBtn = document.getElementById('sendBtn');
+    const text = input.value.trim(); 
+    
+    if (!text) return;
+    
+    const chat = chats.find(c => c.id === activeChatId); 
+    if (!chat) return;
+
+    const kataKunciGambar = ['bikinkan gambar', 'buatkan gambar', 'buat gambar', 'gambarkan', 'lukiskan', 'bikin gambar', 'tolong gambar', 'buat lukisan'];
+    if (kataKunciGambar.some(kata => text.toLowerCase().includes(kata))) {
+      if (chat.title === 'Percakapan Baru') { chat.title = text.substring(0, 25); simpanSemua(); }
+      appendBubble('user', text); chat.history.push({ role: 'user', content: text }); input.value = '';
+      let promptBersih = text; kataKunciGambar.forEach(kata => promptBersih = promptBersih.replace(new RegExp(kata, 'gi'), ''));
+      promptBersih = promptBersih.replace(/rara/gi, '').trim();
+      await generateImage(promptBersih); pasangAksiPesan(); simpanChatAktif(); return;
+    }
+
+    if (chat.title === 'Percakapan Baru') { chat.title = text.length > 25 ? text.substring(0, 25) + '...' : text; simpanSemua(); }
+    appendBubble('user', text); 
+    chat.history.push({ role: 'user', content: text });
+    
+    input.value = ''; 
+    sendBtn.disabled = true; 
+    streaming = true;
+    
+    const botBubble = appendBubble('bot', ''); 
+    botBubble.classList.add('streaming');
+
+    try {
+      const rawHistory = chat.history.slice(-6);
+      const cleanHistory = rawHistory.map(msg => ({
+        role: msg.role === 'bot' ? 'assistant' : 'user',
+        content: msg.content
+      }));
+
+      const messagesForAPI = [
+        { role: "system", content: MODES[modeAI] },
+        ...cleanHistory
+      ];
+
+      const cleanKey = API_KEY_GROQ.trim();
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cleanKey}` 
+        },
+        body: JSON.stringify({ 
+          model: "openai/gpt-oss-20b", // <--- MODEL BARU YANG TERSEDIA DI GROQ
+          messages: messagesForAPI,
+          max_tokens: 500
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || "Gagal terhubung ke Groq");
+      }
+
+      const data = await res.json();
+      const reply = data.choices[0].message.content;
+
+      botBubble.classList.remove('streaming');
+      botBubble.textContent = reply;
+      
+      chat.history.push({ role: 'assistant', content: reply });
+      simpanChatAktif(); 
+      pasangAksiPesan();
+      
+      if (suaraAktif && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(reply);
+        utterance.lang = 'id-ID';
+        speechSynthesis.speak(utterance);
+      }
+
+    } catch (error) {
+      botBubble.classList.remove('streaming');
+      botBubble.textContent = "⚠️ Error: " + error.message + "\n\nCek lagi API Key Groq kamu, Bos!";
+    } finally {
+      sendBtn.disabled = false; 
+      streaming = false;
+    }
+  }
+</script>
+</body>
+</html>
